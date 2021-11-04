@@ -1,3 +1,4 @@
+package fall2021;
 import java.util.Scanner;
 
 //// Removed because Kattis won't have JUnit4 available to it.
