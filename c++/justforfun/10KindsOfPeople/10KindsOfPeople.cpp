@@ -3,9 +3,11 @@
 /// \brief A solution to https://open.kattis.com/problems/10kindsofpeople
 
 #include <iostream>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include <string>
+#include <memory>
 
 typedef uint16_t Num;
 
@@ -14,6 +16,9 @@ typedef std::pair<Num, Num> Position;
 
 /// \brief A vector of equal-length strings containing only '0' or '1'.
 typedef std::vector<std::string> Map;
+
+/// \brief A connected component in a planar graph.
+typedef std::unordered_set<Position> Component;
 
 /// \brief Compares two positions for equality.
 /// \param[in] x The first position.
@@ -60,7 +65,7 @@ public:
   ///   value stored.
   /// \post A collection of connected components has been built.
   ConnectedComponents (const Map& map)
-    : m_components {} {
+    : m_components {}, m_pointers{} {
     std::unordered_set<Position> freePositions {};
 
     for (Num row = 0U; row < map.size (); ++row) {
@@ -81,12 +86,7 @@ public:
   /// \param[in] y Another position.
   /// \return True if they are in the same connected component, or false.
   bool sameComponent (const Position& x, const Position& y) {
-    for (const std::unordered_set<Position>& comp : m_components) {
-      if (comp.count (x) == 1U) {
-	return (comp.count (y) == 1U);
-      }
-    }
-    return false;
+    return m_pointers.at (x) == m_pointers.at (y);
   }
 
 private:
@@ -99,20 +99,20 @@ private:
   ///   been put into a new connected component.
   void buildComponent (const Map& map,
 		       std::unordered_set<Position>& freePositions) {
-    std::unordered_set<Position> newComponent {};
+    Component* newComponent = new Component {};
     std::vector<Position> frontier {};
     const Position arbitrary {*freePositions.cbegin ()};
-    newComponent.insert (arbitrary);
+    newComponent->insert (arbitrary);
     frontier.push_back (arbitrary);
     freePositions.erase (arbitrary);
+    m_pointers[arbitrary] = newComponent;
 
     while (!frontier.empty ()) {
       const Position next = frontier.back ();
       frontier.pop_back ();
       addNeighbors (next, frontier, freePositions, map, newComponent);
     }
-    // TODO: I should be using the move semantics here, right?
-    m_components.push_back (newComponent);
+    m_components.push_back (std::unique_ptr<Component> (newComponent));
   }
 
   /// \brief Finds the neighbors of a position and adds them to the component
@@ -131,7 +131,7 @@ private:
 		     std::vector<Position>& frontier,
 		     std::unordered_set<Position>& freePositions,
 		     const Map& map,
-		     std::unordered_set<Position>& component) {
+		     Component* component) {
     std::vector<Position> neighbors {};
     if (arbitrary.first > 0) {
       neighbors.emplace_back (arbitrary.first - 1, arbitrary.second);
@@ -147,11 +147,12 @@ private:
     }
 
     for (const Position& neighbor : neighbors) {
-      if (component.count (neighbor) == 0U) {
+      if (component->count (neighbor) == 0U) {
 	if (isOne (arbitrary, map) == isOne (neighbor, map)) {
 	  frontier.push_back (neighbor);
-	  component.insert (neighbor);
+	  component->insert (neighbor);
 	  freePositions.erase (neighbor);
+	  m_pointers[neighbor] = component;
 	}
       }
     }    
@@ -159,7 +160,10 @@ private:
 
   /// A collection of components, each of which is an unordered set of
   ///   positions.
-  std::vector<std::unordered_set<Position>> m_components;
+  std::vector<std::unique_ptr<Component>> m_components;
+
+  /// A map from each position to the connected component it is in.
+  std::unordered_map<Position, Component*> m_pointers;
 };
 
 
