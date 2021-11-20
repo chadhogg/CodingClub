@@ -7,11 +7,19 @@
 #include <unordered_map>
 #include <unordered_set>
 
-int main () {
+int main (int argc, char* argv[]) {
+  int maxvert = 10000;
+  int maxedge = 30000;
+  int maxquer = 100;
+  if (argc == 4) {
+    maxvert = atoi (argv[1]);
+    maxedge = atoi (argv[2]);
+    maxquer = atoi (argv[3]);
+  }
   srand (time (NULL));
-  int vertices = rand () % 10000;
-  int edgeNum = rand () % std::min (30000, vertices * (vertices - 1));
-  int queries = rand () % 100;
+  int vertices = rand () % maxvert;
+  int edgeNum = rand () % std::min (maxedge, vertices * (vertices - 1));
+  int queries = rand () % maxquer;
   int start = rand () % vertices;
 
   std::cout << vertices << " " << edgeNum << " " << queries << " " << start << "\n";

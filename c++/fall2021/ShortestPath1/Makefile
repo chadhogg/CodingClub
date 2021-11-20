@@ -1,11 +1,12 @@
-.PHONY : all
+.PHONY : all clean
 
-CXX_OPTIONS = -g -pg
+CXX_OPTIONS = -g
 
-all : ShortestPath1.out Generator.out
+all : ShortestPath1.out Generator.out ShortestPath1V2.out
 
-ShortestPath1.out : ShortestPath1.cpp
+%.out : %.cpp
 	g++ $(CXX_OPTIONS) -o $@ $<
 
-Generator.out : Generator.cpp
-	g++ $(CXX_OPTIONS) -o $@ $<
+
+clean :
+	rm *~ ShortestPath1.out Generator.out ShortestPath1V2.out

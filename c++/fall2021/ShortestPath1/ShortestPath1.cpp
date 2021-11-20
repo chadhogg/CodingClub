@@ -1,7 +1,12 @@
 /// \file ShortestPath1.cpp
 /// \author Chad Hogg
 /// \brief A solution to https://open.kattis.com/problems/shortestpath1
-/// \note Currently, I don't have this being fast enough.
+/// \note I had this working at some point, but I ran into Time Limit Exceeded,
+///   and then after fixing that I had Memory Limit Exceeded, and then in my
+///   attempts to fix it I broke it to the point where I don't even get the
+///   correct answer all the time any more.
+/// So I have abandoned this code base entirely and am now working on
+///   \see ShortestPath1V2.cpp.
 
 #include <iostream>
 #include <vector>
@@ -16,6 +21,8 @@ public:
   //virtual ~WeightedGraph () {}
   virtual unsigned int getWeight (unsigned int source, unsigned int dest) const = 0;
   virtual bool connected (unsigned int source, unsigned int dest) const = 0;
+
+  virtual inline const std::unordered_map<unsigned int, unsigned int>& getOutgoingEdges (unsigned int vertex) const = 0;
 private:
 };
 
@@ -57,6 +64,10 @@ public:
     else {
       return true;
     }
+  }
+
+  virtual inline const std::unordered_map<unsigned int, unsigned int>& getOutgoingEdges (unsigned int vertex) const {
+    throw std::runtime_error ("My pretty OO design died, because I need this method to make using the other implementation as fast as possible, but there's no reasonable way to write it here.");
   }
 
 private:
@@ -109,12 +120,66 @@ public:
     }
   }
 
+  virtual inline const std::unordered_map<unsigned int, unsigned int>& getOutgoingEdges (unsigned int vertex) const {
+    return weights[vertex];
+  }
+
 private:
   std::vector<std::unordered_map<unsigned int, unsigned int>> weights;
 };
 
 
+class DistanceComparator {
+public:
+  inline bool operator() (const std::pair<unsigned int, unsigned int>& x,
+			  const std::pair<unsigned int, unsigned int>& y) const {
+    return x.second > y.second;
+  }
+};
 
+DistanceComparator comp;
+
+
+class DistanceTracker {
+public:
+
+  void setDistance (unsigned int vertex, unsigned int distance) {
+    if (map.count (vertex) == 0 || map[vertex] != distance) {
+      map[vertex] = distance;
+      pq.emplace_back (vertex, distance);
+      std::push_heap (pq.begin (), pq.end (), comp);
+    }
+  }
+
+  inline bool contains (unsigned int vertex) const {
+    return map.count (vertex) == 1;
+  }
+
+  inline unsigned int getDistance (unsigned int vertex) const {
+    return map.at (vertex);
+  }
+
+  std::pair<unsigned int, unsigned int> getLowestDistance () {
+    std::pop_heap (pq.begin (), pq.end (), comp);
+    std::pair<unsigned int, unsigned int> lowest = pq.back ();
+    pq.pop_back ();
+    while (map.count (lowest.first) == 0 || map.at (lowest.first) != lowest.second) {
+      std::pop_heap (pq.begin (), pq.end (), comp);
+      lowest = pq.back ();
+      pq.pop_back ();
+    }
+    map.erase (lowest.first);
+    return lowest;
+  }
+
+  inline bool empty () const {
+    return map.empty ();
+  }
+  
+private:
+  std::vector<std::pair<unsigned int, unsigned int>> pq;
+  std::unordered_map<unsigned int, unsigned int> map;
+};
 
 static bool hasUnvisitedWithDistance (const std::unordered_map<unsigned int, unsigned int>& distances, const std::unordered_set<unsigned int>& unvisited) {
   for (unsigned int uv : unvisited) {
@@ -173,12 +238,45 @@ static std::unordered_map<unsigned int, unsigned int> dijkstra (int n, const std
 
 
 
+static std::unordered_map<unsigned int, unsigned int> dijkstra2 (int n, const std::unique_ptr<WeightedGraph>& graph, unsigned int start) {
+  std::unordered_map<unsigned int, unsigned int> completedDistances {};
+  DistanceTracker tentativeDistances {};
+  std::unordered_set<unsigned int> unvisited {};
+  for (unsigned int vertex = 0U; vertex < n; ++vertex) {
+    unvisited.insert (vertex);
+  }
+  tentativeDistances.setDistance (start, 0U);
+
+  
+  while (!tentativeDistances.empty ()) {
+    std::pair<unsigned int, unsigned int> pair = tentativeDistances.getLowestDistance ();
+    unsigned int current = pair.first;
+    unsigned int distance = pair.second;
+    unvisited.erase (current);
+    completedDistances[current] = distance;
+    const std::unordered_map<unsigned int, unsigned int>& neighbors = graph->getOutgoingEdges (current);
+    for (const std::pair<unsigned int, unsigned int> potential : neighbors) {
+      unsigned int potentialNeighbor = potential.first;
+      unsigned int weight = potential.second;
+      if (unvisited.count (potentialNeighbor) == 1) {
+	if (!tentativeDistances.contains (potentialNeighbor) ||
+	    tentativeDistances.getDistance (potentialNeighbor) > distance + weight) {
+	  tentativeDistances.setDistance (potentialNeighbor, distance + weight);
+	}
+      }
+    }
+  }
+  return completedDistances;
+}
+
+
+
 
 int main () {
   unsigned int n, m, q, s;
   std::cin >> n >> m >> q >> s;
   while (n > 0 || m > 0 || q > 0 || s > 0) {
-    std::unique_ptr<WeightedGraph> graph {new MatrixWeightedGraph (n, m, std::cin)};
+    std::unique_ptr<WeightedGraph> graph {new ListWeightedGraph (n, m, std::cin)};
  
     std::vector<unsigned int> queries;
     queries.reserve (q);
@@ -188,7 +286,7 @@ int main () {
       queries.push_back (temp);
     }
 
-    std::unordered_map<unsigned int, unsigned int> distances = dijkstra (n, graph, s);
+    std::unordered_map<unsigned int, unsigned int> distances = dijkstra2 (n, graph, s);
       
     for (unsigned int destination : queries) {
       if (distances.count (destination) == 1) {
