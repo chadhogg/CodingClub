@@ -55,28 +55,20 @@ std::pair<long, long> slowAlgorithm (std::string& sequence, int index, int numZe
         result.first = 0L;
         result.second = 1L;
     }
-    else if (sequence[index] == '1') {
-        // If we have a 1 here, we aren't adding any more swaps (except for more positions that that
-        //   future 0s will have to move through), nor increasing the branching factor.
-        result = slowAlgorithm (sequence, index + 1, numZeroesSoFar);
-    }
-    else if(sequence[index] == '0') {
-        // If we have a 0 here, it needs to be moved past all the 1s we have already seen.  Furthermore,
-        //   this has to happen once for *each deeper branch*.
-        std::pair<long, long> recurse1 = slowAlgorithm (sequence, index + 1, numZeroesSoFar + 1);
-        result.first = multiplyModulo ((index - numZeroesSoFar), recurse1.second);
-        result.first = addModulo (result.first, recurse1.first);
-        result.second = recurse1.second;
-    }
     else {
-        // If we have a ? here, we do the thing we would for a 0 and the thing we would for a 1 and
-        //   add the results (and the number of branches) together.
-        std::pair<long, long> part1 = slowAlgorithm (sequence, index + 1, numZeroesSoFar);
-        result.first = part1.first;
-        std::pair<long, long> part2 = slowAlgorithm (sequence, index + 1, numZeroesSoFar + 1);
-        result.first = addModulo (result.first, multiplyModulo ((index - numZeroesSoFar), part2.second));
-        result.first = addModulo (result.first, part2.first);
-        result.second = (part1.second + part2.second);
+        result.first = 0L;
+        result.second = 0L;
+        if (sequence[index] == '1' || sequence[index] == '?') {
+            std::pair<long, long> onesRecursion = slowAlgorithm (sequence, index + 1, numZeroesSoFar);
+            result.first = addModulo (result.first, onesRecursion.first);
+            result.second += onesRecursion.second;
+        }
+        if (sequence[index] == '0' || sequence[index] == '?') {
+            std::pair<long, long> zeroesRecursion = slowAlgorithm (sequence, index + 1, numZeroesSoFar + 1);
+            result.first = addModulo (result.first, multiplyModulo ((index - numZeroesSoFar), zeroesRecursion.second));
+            result.first = addModulo (result.first, zeroesRecursion.first);
+            result.second += zeroesRecursion.second;
+        }
     }
     return result;
 }
