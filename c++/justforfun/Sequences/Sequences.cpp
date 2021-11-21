@@ -40,14 +40,14 @@ std::string prefix(int index) {
 /// \brief A way of solving the problem that's too slow to be practical, but will hopefully lead me somewhere.
 /// \param[in] sequence The bit sequence to work on.
 /// \param[in] index Where in the sequence we are currently working.  (Everything before is finished.)
-/// \param[in] numZeroesSoFar The number of zeroes that have been seen before the index.
+/// \param[in] numOnesSoFar The number of ones that have been seen before the index.
 /// \return A pair containing the total number of swaps needed for (real and theoretical) 0s at and beyond the index
 ///   and the total number of times the algorithm branched at or past the index.
 /// \note The problem, of course, is that we have an exponential number of branch points.  I need to find a way to
 ///   handle the final else without two recursive calls.
 /// \note I have an idea, not yet explored, that involves dividing the sequence in half, solving each half
 ///   separately, and combining the results.
-std::pair<long, long> slowAlgorithm (std::string& sequence, int index, int numZeroesSoFar) {
+std::pair<long, long> slowAlgorithm (std::string& sequence, int index, int numOnesSoFar) {
     std::pair<long, long> result;
     if (index == sequence.length ()) {
         // If we've reached the end of the sequence, there are no zeroes from here on out that
@@ -59,13 +59,17 @@ std::pair<long, long> slowAlgorithm (std::string& sequence, int index, int numZe
         result.first = 0L;
         result.second = 0L;
         if (sequence[index] == '1' || sequence[index] == '?') {
-            std::pair<long, long> onesRecursion = slowAlgorithm (sequence, index + 1, numZeroesSoFar);
+            // If there is (or could be) a 1 here, we don't have to move it (though we will have to move any
+            //   future 0s through it).  
+            std::pair<long, long> onesRecursion = slowAlgorithm (sequence, index + 1, numOnesSoFar + 1);
             result.first = addModulo (result.first, onesRecursion.first);
             result.second += onesRecursion.second;
         }
         if (sequence[index] == '0' || sequence[index] == '?') {
-            std::pair<long, long> zeroesRecursion = slowAlgorithm (sequence, index + 1, numZeroesSoFar + 1);
-            result.first = addModulo (result.first, multiplyModulo ((index - numZeroesSoFar), zeroesRecursion.second));
+            // If there is (or could be) a 0 here, we have to move it but don't need to move future 0s
+            //   through it.  Furthermore, we need to make those moves *for each* future branch.
+            std::pair<long, long> zeroesRecursion = slowAlgorithm (sequence, index + 1, numOnesSoFar);
+            result.first = addModulo (result.first, multiplyModulo (numOnesSoFar, zeroesRecursion.second));
             result.first = addModulo (result.first, zeroesRecursion.first);
             result.second += zeroesRecursion.second;
         }
