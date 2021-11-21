@@ -77,10 +77,57 @@ std::pair<long, long> slowAlgorithm (std::string& sequence, int index, int numOn
     return result;
 }
 
+/// \brief An attempt at a faster apporach through divide-and-conquer.
+/// \param[in] sequence The string we are working with.
+/// \param[in] begin The first index in the substring we are responsible for.
+/// \param[in] end The first index past the substring we are responsible for.
+/// \return A pair in which the first element is the number of swaps this subsequence will require per '1' that comes before it,
+///   and the second element is the number of '1's in the subsequence.
+/// \note I haven't yet thought about how to deal with '?'s.
+std::pair<long, long> splitAlgorithm (std::string& sequence, int begin, int end) {
+    //std::cout << prefix (sequence.length() - (end - begin)) << "Working on [" << begin << ", " << end << ")\n";
+    std::pair<long, long> result;
+    if (begin >= end) {
+        result.first == 0L;
+        result.second == 0L;
+    }
+    else if(begin == end - 1) {
+        if (sequence[begin] == '0') {
+            result.first = 0L;
+            result.second = 0L;
+        }
+        else if(sequence[begin] == '1') {
+            result.first = 0L;
+            result.second = 1L;
+        }
+        else {
+            // TODO
+        }
+    }
+    else {
+        std::pair<long, long> firstHalf = splitAlgorithm (sequence, begin, (begin + end) / 2);
+        std::pair<long, long> secondHalf = splitAlgorithm (sequence, (begin + end) / 2, end);
+        long zeroesInFirstHalf = (begin + end) / 2 - begin - firstHalf.second;
+        long onesInFirstHalf = firstHalf.second;
+        long zeroesInSecondHalf = end - (begin + end) / 2 - secondHalf.second;
+        long onesInSecondHalf = secondHalf.second;
+        long swapsWithinFirstHalf = firstHalf.first;
+        long swapsWithinSecondHalf = secondHalf.first;
+        long totalSwaps = addModulo (swapsWithinFirstHalf, swapsWithinSecondHalf);
+        totalSwaps = addModulo (totalSwaps, multiplyModulo (zeroesInSecondHalf, onesInFirstHalf));
+        result.first = totalSwaps;
+        result.second = firstHalf.second + secondHalf.second;
+    }
+    //std::cout << prefix (sequence.length() - (end - begin)) << "Returning {" << result.first << ", " << result.second << "}\n";
+    return result;
+}
+
 /// \brief Runs the program.
 /// \return Always 0.
 int main () {
     std::string sequence;
     std::cin >> sequence;
     std::cout << slowAlgorithm (sequence, 0, 0).first << "\n";
+    std::cout << splitAlgorithm (sequence, 0, sequence.length()).first << "\n";
+    return 0;
 }
