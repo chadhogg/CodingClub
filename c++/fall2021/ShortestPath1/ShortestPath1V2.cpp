@@ -3,8 +3,9 @@
 /// \brief Another attempt at https://open.kattis.com/problems/shortestpath1
 /// My other code was getting so messy from my various attempts to optimize it
 ///   that it seemed cleanest to just start fresh.
-/// \note Currently Kattis is reporting a Run Time Exception for this.  Of
-///   course, I can't reproduce it with any of the test cases I generate.
+/// \note Success!  Many thanks to William Killian for the suggestion that fixed it.
+/// \note Previous versions of this used a std::unordered_map<Vertex, std::unordered_map<Vertex, Weight>> for the graph edges.
+///   Kattis reported a Run Time Exception for that version, but I could never reproduce it.  I have no idea why.
 
 #include <unordered_map>
 #include <vector>
@@ -25,9 +26,6 @@ typedef unsigned int Distance;
 
 
 /// \brief A fairly sparse weighted graph, represented as an adjacency-list.
-/// More precisely, it doesn't store a list at all.  For each vertex, it stores
-///   a map from destinations to weights.  The non-existence of a vertex in
-///   that map implies the non-existence of an edge to it.
 class WeightedGraph {
 public:
 
@@ -46,22 +44,14 @@ public:
     m_edges.reserve (numVertices);
     // Each vertex gets an empty map of outgoing edges.
     for (Vertex vertex {0U}; vertex < numVertices; ++vertex) {
-      // NOTE: I don't quite understand how this code I yoinked from the web
-      //   works.  I'm trying to say to make the new unordered_map directly in
-      //   place instead of making it, copying it, and discarding the copy.
-      m_edges.emplace (std::piecewise_construct,
-		       std::forward_as_tuple (vertex),
-		       std::tuple<> {});
+      m_edges.emplace_back ();
     }
     // Read all of the edges from input.
     for (unsigned int edgeNum {0U}; edgeNum < numEdges; ++edgeNum) {
       Vertex source, destination;
       Weight weight;
       is >> source >> destination >> weight;
-      assert (source < numVertices);
-      assert (destination < numVertices);
-      assert (m_edges[source].count (destination) == 0U);
-      m_edges[source][destination] = weight;
+      m_edges[source].emplace_back (destination, weight);
     }
   }
 
@@ -70,9 +60,9 @@ public:
   /// \return A reference to a map of destination vertex to weight for every
   ///   outgoing edge that source vertex has.  The reference will become
   ///   invalid when this object goes out of scope.
-  inline const std::unordered_map<Vertex, Weight>& getOutgoingEdges (Vertex source) const {
+  inline const std::vector<std::pair<Vertex, Weight> >& getOutgoingEdges (Vertex source) const {
     assert (source < m_numVertices);
-    return m_edges.at (source);
+    return m_edges[source];
   }
 
   /// \brief Gets the number of vertices in the graph.
@@ -85,8 +75,8 @@ private:
   /// The number of vertices, which also happens to be 1 greater than the
   ///   largest vertex label.
   unsigned int m_numVertices;
-  /// A map from source vertex to a map from destination vertex to weight.
-  std::unordered_map<Vertex, std::unordered_map<Vertex, Weight>> m_edges;
+  /// An adjacency list.
+  std::vector<std::vector<std::pair<Vertex, Weight> > > m_edges;
 };
 
 
@@ -201,19 +191,19 @@ private:
     for (const std::pair<Vertex, Weight>& outgoingEdge : graph.getOutgoingEdges (current)) {
       // If the neighbor's distance has already been finalized, skip it.
       if (m_finalizedDistances.count (outgoingEdge.first) == 0U) {
-	const Distance combined = soFar + outgoingEdge.second;
-	// If never reached or going through this node is faster, update.
-	if (m_tentativeDistances.count (outgoingEdge.first) == 0U ||
-	    m_tentativeDistances[outgoingEdge.first] > combined) {
-	  m_tentativeDistances[outgoingEdge.first] = combined;
-	  // Trying to find the entry in the priority queue to update it would
-	  //   be a linear-time search, which is too slow.
-	  // Instead, just add another copy with the reduced distance.
-	  // When removing from the priority queue we will ignore entries for
-	  //   vertices whose distances have already been finalized.
-	  m_priorityQueue.emplace_back (outgoingEdge.first, combined);
-	  std::push_heap (m_priorityQueue.begin (), m_priorityQueue.end (), m_comp);
-	}
+	      const Distance combined = soFar + outgoingEdge.second;
+	      // If never reached or going through this node is faster, update.
+	      if (m_tentativeDistances.count (outgoingEdge.first) == 0U ||
+	        m_tentativeDistances[outgoingEdge.first] > combined) {
+	        m_tentativeDistances[outgoingEdge.first] = combined;
+	        // Trying to find the entry in the priority queue to update it would
+	        //   be a linear-time search, which is too slow.
+	        // Instead, just add another copy with the reduced distance.
+	        // When removing from the priority queue we will ignore entries for
+	        //   vertices whose distances have already been finalized.
+	        m_priorityQueue.emplace_back (outgoingEdge.first, combined);
+	        std::push_heap (m_priorityQueue.begin (), m_priorityQueue.end (), m_comp);
+	      }
       }
     }
   }
@@ -254,10 +244,10 @@ int main () {
     for (unsigned int count = 0U; count < numQueries; ++count) {
       std::cin >> currentQuery;
       if (distances.isReachable (currentQuery)) {
-	std::cout << distances.getDistance (currentQuery) << "\n";
+	      std::cout << distances.getDistance (currentQuery) << "\n";
       }
       else {
-	std::cout << "Impossible\n";
+	      std::cout << "Impossible\n";
       }
     }
 
