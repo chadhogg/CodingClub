@@ -4,8 +4,6 @@
 ///
 /// My strategy here relies on an assumption that I can always buy everything at the earliest possible time without loss of generality,
 ///   and can also do so at the latest possible time.  If there is more than one solution, these will be different.
-///
-/// \note This is currently a work in progress.
 
 #include <iostream>
 #include <string>
