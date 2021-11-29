@@ -194,6 +194,36 @@ double computeAreas (std::vector<Polygon> const& polys) {
     return total;
 }
 
+// TODO implement this (with lots of helper functions)
+void unionPolygons (std::vector<Polygon>& polys) {
+    bool madeChange = true;
+    while (madeChange) {
+        madeChange = false;
+        for (unsigned int firstIndex {0U}; firstIndex < polys.size (); ++firstIndex) {
+            for (unsigned int secondIndex {firstIndex + 1}; secondIndex < polys.size (); ++secondIndex) {
+                // if first poly lies completely within second poly
+                //    replace first poly with second poly, erase second copy of second poly
+                // else if second poly lies completely within first poly
+                //    erase second poly
+                // else if parts of first poly lie inside second poly and other parts do not
+                //    make a new poly, containing any vertex of first poly that is outside of second poly
+                //    while haven't gotten back to the initial point of new poly
+                //        if most recently added vertex was from first poly
+                //            if none of second poly's edges intersect segment from most recently added vertex to next in first poly
+                //                add next vertex of first poly to new poly
+                //            else
+                //                add first intersection point to new poly
+                //                consider this a vertex of second poly for purposes of where to go next
+                //        else
+                //            just like above, but swapping first/second polys
+                //    replace first poly with new poly
+                //    erase second poly
+                //    madeChange = true;
+            }
+        }
+    }
+}
+
 
 /// \brief Runs the program.
 /// \return Always 0.
