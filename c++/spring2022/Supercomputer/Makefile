@@ -1,6 +1,6 @@
 .PHONY : all clean
 
-CXX_OPTIONS = -g
+CXX_OPTIONS = -g -O3
 
 all : Supercomputer.out
 
