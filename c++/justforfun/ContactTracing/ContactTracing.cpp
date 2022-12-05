@@ -2,13 +2,14 @@
 /// \brief An attempt at solving https://open.kattis.com/problems/contacttracing.
 /// \author Chad Hogg
 /// \version 2022-12-02
-/// \todo solve() is too slow.  And apparently solve2() is as well.  Next idea: don't actually remove from set, as that might be too expensive.
+/// Possible improvement: Maybe I can merge all of the new infected people in a single pass rather than multiple.
 
 #include <iostream>
 #include <list>
 #include <set>
 #include <cassert>
 #include <stdexcept>
+#include <vector>
 
 using Range = std::pair<unsigned long, unsigned long>;
 
@@ -83,6 +84,11 @@ mergeRange (std::set<Range>& ranges, const Range& additional)
       toAdd.second = std::max (toAdd.second, r.second);
       it = ranges.erase (it);
     }
+    else if (toAdd.first > r.second)
+    {
+      // Past the last one that could possibly intersect it, so don't bother checking others.
+      break;
+    }
     else
     {
       ++it;
@@ -156,9 +162,13 @@ solve (Problem& prob)
   }
 }
 
+const unsigned DELETED = 0;
+
 void
 solve2 (Problem& prob)
 {
+  // Switching to a sorted vector at the suggestion of WKK, so that iteration becomes faster.
+  std::vector<Person> allPeople (prob.uninfected.begin (), prob.uninfected.end ());
   while (prob.daysLeft > 0)
   {
 #ifdef DEBUG
@@ -175,18 +185,26 @@ solve2 (Problem& prob)
 #endif//DEBUG
 
     std::set<Person> newInfected;
-    auto personIt = prob.uninfected.begin ();
+    auto personIt = allPeople.begin ();
     auto rangeIt = prob.infectedRanges.begin ();
-    while (personIt != prob.uninfected.end () && rangeIt != prob.infectedRanges.end ())
+    bool changed = false;
+    while (personIt != allPeople.end () && rangeIt != prob.infectedRanges.end ())
     {
       const Person& person = *personIt;
       const Range& range = *rangeIt;
 
-      if (intersects (person.range, range))
+      if (person.index == DELETED)
       {
-        // This uninfected person intersects with a infected range, so remove them and move on.
+        // Skip this person, as they are already infected.
+        ++personIt;
+      }
+      else if (intersects (person.range, range))
+      {
+        // This uninfected person intersects with a infected range, so mark them as deleted and move on.
         newInfected.insert (person);
-        personIt = prob.uninfected.erase (personIt);
+        personIt->index = DELETED;
+        ++personIt;
+        changed = true;
       }
       else if (person.range.first > range.second)
       {
@@ -210,6 +228,7 @@ solve2 (Problem& prob)
       mergeRange (prob.infectedRanges, person.range);
     }
     --prob.daysLeft;
+    if (!changed) { break; }
   }
 #ifdef DEBUG
   for (const Range& range : prob.infectedRanges)
