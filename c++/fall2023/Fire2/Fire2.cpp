@@ -9,6 +9,9 @@
 #include <iomanip>
 #include <vector>
 #include <algorithm>
+#include <map>
+#include <list>
+#include <set>
 
 const char ROOM = '.';
 const char WALL = '#';
@@ -18,15 +21,16 @@ const char FIRE = '*';
 const int CANT_BE_ON_FIRE = -1;
 const int NOT_ON_FIRE_YET = -2;
 
-
+// <row, column>
 using Position = std::pair<int, int>;
+// <<row, column>, <seconds passed>
+using State = std::pair<Position, int>;
 using FireMap = std::vector<std::vector<int>>;
 
 struct Puzzle
 {
     std::vector<std::vector<char>> map;
     Position me;
-    int secondsPassed;
 
     void
     validate () const
@@ -123,7 +127,56 @@ void
 solve (const Puzzle& puzzle) {
     FireMap fireMap = puzzle.generateFireMap ();
     //printFireMap (fireMap);
-    std::cout << "TODO\n";
+
+    std::map<State, std::set<Position>> solutions;
+    std::list<std::pair<State, std::set<Position>>> frontier;
+    frontier.push_back ({{puzzle.me, 0}, {}});
+
+    while (!frontier.empty ()) {
+        State current = frontier.front ().first;
+        std::set<Position> previous = frontier.front ().second;
+        frontier.pop_front ();
+        //std::cout << "(" << current.first.first << ", " << current.first.second << "): " << current.second << "\n";
+
+        if (current.first.first == 0 || current.first.first == puzzle.map.size () - 1 || current.first.second == 0 || current.first.second == puzzle.map.at (0).size () - 1) {
+            // We made it out!
+            if (solutions.count (current) == 0 || solutions.at (current).size () > previous.size ()) {
+                solutions[current] = previous;
+            }
+        }
+        else {
+            std::vector<Position> neighbors;
+            if (current.first.first > 0) { neighbors.push_back ({current.first.first - 1, current.first.second}); }
+            if (current.first.first < puzzle.map.size () - 1) { neighbors.push_back ({current.first.first + 1, current.first.second}); }
+            if (current.first.second > 0) { neighbors.push_back ({current.first.first, current.first.second - 1}); }
+            if (current.first.second < puzzle.map.at (0).size () - 1) { neighbors.push_back ({current.first.first, current.first.second + 1}); }
+            // We could move to any adjacent square
+            for (const Position& pos : neighbors) {
+                // ... as long as it isn't a wall
+                if (puzzle.map.at (pos.first).at (pos.second) != WALL) {
+                    // ... and it isn't already on fire
+                    if (fireMap.at (pos.first).at (pos.second) > current.second) {
+                        // ... and (for efficiency) we haven't already been there
+                        if (previous.count (pos) == 0) {
+                            // Then we can try it!
+                            frontier.push_back ({{pos, current.second + 1}, {previous}});
+                            frontier.back ().second.insert (current.first);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (solutions.size () == 0) {
+        std::cout << "IMPOSSIBLE\n";
+    }
+    else {
+        int best = INT16_MAX;
+        for (const std::pair<State, std::set<Position>>& solution : solutions) {
+            if (solution.first.second < best) { best = solution.first.second; }
+        }
+        std::cout << best + 1 << "\n";
+    }
 }
 
 int
@@ -137,7 +190,6 @@ main (int argc, char* argv[])
         Puzzle puzzle;
         puzzle.me.first = -1;
         puzzle.me.second = -1;
-        puzzle.secondsPassed = 0;
         while (h > 0) {
             std::string line;
             std::cin >> line;
