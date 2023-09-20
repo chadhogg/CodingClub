@@ -172,6 +172,10 @@ struct Puzzle
                                 if (value == timePassed) {
                                     fleeMap[row][col] = timePassed + 1;
                                     changed = true;
+                                    // Minor optimization: the first exit we find should be the best, so don't look for others.
+                                    if (row == 0 || row == map.size () - 1 || col == 0 || col == map.at (row).size () - 1) {
+                                        return fleeMap;
+                                    }
                                 }
                             }
                         }
