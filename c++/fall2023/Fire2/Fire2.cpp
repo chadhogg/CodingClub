@@ -1,82 +1,81 @@
 /// \file Fire2.cpp
-/// \author CHad Hogg
+/// \author Chad Hogg
 /// \brief My solution to https://open.kattis.com/problems/fire2
 
 #include <iostream>
 #include <string>
 #include <cassert>
-#include <cmath>
 #include <iomanip>
 #include <vector>
-#include <algorithm>
-#include <map>
-#include <list>
-#include <set>
 
 const char ROOM = '.';
 const char WALL = '#';
 const char ME = '@';
 const char FIRE = '*';
 
-const int CANT_BE_ON_FIRE = -1;
+const int IS_A_WALL = -1;
 const int NOT_ON_FIRE_YET = -2;
+const int BURNING_BEFORE_WE_ARRIVE = -3;
+const int NOT_REACHED_YET = -4;
 
 // <row, column>
 using Position = std::pair<int, int>;
 // <<row, column>, <seconds passed>
 using State = std::pair<Position, int>;
-using FireMap = std::vector<std::vector<int>>;
+// Uses non-negative numbers to say when a cell (at earliest) can be reached, negatives otherwise.
+using TimeMap = std::vector<std::vector<int>>;
 
 struct Puzzle
 {
     std::vector<std::vector<char>> map;
-    Position me;
 
     void
     validate () const
     {
+        int numMes = 0;
+        // Sizes should be within the bounds described in the problem.
         assert (map.size () >= 1 && map.size () <= 1000);
         assert (map.at (0).size () >= 1 && map.at (0).size () <= 1000);
-        assert (me.first >= 0 && me.first < map.size ());
-        assert (me.second >= 0 && me.second < map.at (0).size ());
+        // Each row should be the same width.
         for (int row = 1; row < map.size (); ++row) {
             assert (map.at (0).size () == map.at (row).size ());
         }
         for (int row = 0; row < map.size (); ++row) {
             for (int col = 0; col < map.at (row).size (); ++col) {
+                // Each cell should contain one of the allowable characters.
                 assert (map.at (row).at (col) == ROOM
                         || map.at (row).at (col) == WALL
                         || map.at (row).at (col) == ME
                         || map.at (row).at (col) == FIRE);
                 if (map.at (row).at (col) == ME) {
-                    assert (row == me.first && col == me.second);
+                    numMes++;
                 }
             }
         }
+        // There should be exactly one starting location.
+        assert (numMes == 1);
     }
 
-    bool
-    isSolved () const
-    {
-        assert (map.at (me.first).at (me.second) == ME);
-        return me.first == 0 || me.first == map.size () - 1 || me.second == 0 || me.second == map.at (0).size () - 1;
-    }
-
-    FireMap
+    // This map will tell us at what second fire reaches each reach-able space.
+    TimeMap
     generateFireMap () const
     {
-        FireMap fireMap;
+        TimeMap fireMap;
         fireMap.reserve (map.size ());
+        // Set up a map showing how things are at time 0.
         for (int row = 0; row < map.size (); ++row) {
             std::vector<int> fireRow;
             fireRow.reserve (map.at (row).size ());
             for (int col = 0; col < map.at (row).size (); ++col) {
+                // Some cells are walls and will never be burnable.
                 if (map.at (row).at (col) == WALL) {
-                    fireRow.push_back (CANT_BE_ON_FIRE);
+                    fireRow.push_back (IS_A_WALL);
                 }
+                // Some cells are already on fire.
                 else if (map.at (row).at (col) == FIRE) {
                     fireRow.push_back (0);
                 }
+                // Some cells will (probably) catch fire in the future.
                 else {
                     fireRow.push_back (NOT_ON_FIRE_YET);
                 }
@@ -86,10 +85,13 @@ struct Puzzle
 
         bool changed = true;
         int timePassed = 0;
+        // Iterate until a second passes with no additional cells catching fire.
+        // Any that are still unburned at that point can never be burned.
         while (changed) {
             changed = false;
             for (int row = 0; row < map.size (); ++row) {
                 for (int col = 0; col < map.at (row).size (); ++col) {
+                    //  If a cell is not yet burning, it has the potential to catch fire this turn.
                     if (fireMap.at (row).at (col) == NOT_ON_FIRE_YET) {
                         std::vector<Position> neighbors;
                         if (row > 0) { neighbors.push_back ({row - 1, col}); }
@@ -97,6 +99,7 @@ struct Puzzle
                         if (col > 0) { neighbors.push_back ({row, col - 1}); }
                         if (col < map.at (row).size () - 1) { neighbors.push_back ({row, col + 1}); }
                         for (const Position & neighbor : neighbors) {
+                            // If a direct neighbor caught fire last time, I catch fire this time.
                             int value = fireMap.at (neighbor.first).at (neighbor.second);
                             if (value == timePassed) {
                                 fireMap[row][col] = timePassed + 1;
@@ -110,13 +113,93 @@ struct Puzzle
         }
         return fireMap;
     }
+
+    // This map will tell us what second is the earliest at which the person could reach a cell
+    //   (without walking through fire).
+    TimeMap
+    generateFleeMap (const TimeMap& fireMap) const
+    {
+        TimeMap fleeMap;
+        fleeMap.reserve (map.size ());
+        // Set up a map showing how things are at time 0.
+        for (int row = 0; row < map.size (); ++row) {
+            std::vector<int> fleeRow;
+            fleeRow.reserve (map.at (row).size ());
+            for (int col = 0; col < map.at (row).size (); ++col) {
+                // Some cells are walls, and thus never enterable.
+                if (map.at (row).at (col) == WALL) {
+                    fleeRow.push_back (IS_A_WALL);
+                }
+                // Some cells are already on fire and thus not enterable.
+                else if (map.at (row).at (col) == FIRE) {
+                    fleeRow.push_back (BURNING_BEFORE_WE_ARRIVE);
+                }
+                // Some cells (only one if we passed validation) are where we start.
+                else if (map.at (row).at (col) == ME) {
+                    fleeRow.push_back (0);
+                }
+                // Everywhere else we don't yet know about.
+                else {
+                    fleeRow.push_back (NOT_REACHED_YET);
+                }
+            }
+            fleeMap.push_back (fleeRow);
+        }
+
+        bool changed = true;
+        int timePassed = 0;
+        // Iterate until a second passes with no additional cells being reached.
+        // Any cells we haven't reached at that point cannot be reached.
+        while (changed) {
+            changed = false;
+            for (int row = 0; row < map.size (); ++row) {
+                for (int col = 0; col < map.at (row).size (); ++col) {
+                    // Cells about which we have no information are potentially interesting.
+                    if (fleeMap.at (row).at (col) == NOT_REACHED_YET) {
+                        // If it catches fire at or before now, we can't go there.
+                        if (fireMap.at (row).at (col) >= 0 && fireMap.at (row).at (col) <= timePassed) {
+                            fleeMap.at (row).at (col) = BURNING_BEFORE_WE_ARRIVE;
+                        }
+                        else {
+                            std::vector<Position> neighbors;
+                            if (row > 0) { neighbors.push_back ({row - 1, col}); }
+                            if (row < map.size () - 1) { neighbors.push_back ({row + 1, col}); }
+                            if (col > 0) { neighbors.push_back ({row, col - 1}); }
+                            if (col < map.at (row).size () - 1) { neighbors.push_back ({row, col + 1}); }
+                            for (const Position & neighbor : neighbors) {
+                                // If we could reach one of its neighbors last turn, we can reach it this turn.
+                                int value = fleeMap.at (neighbor.first).at (neighbor.second);
+                                if (value == timePassed) {
+                                    fleeMap[row][col] = timePassed + 1;
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            ++timePassed;
+        }
+        return fleeMap;
+    }
 };
 
 void
-printFireMap(const FireMap& fireMap) {
-    for (int row = 0; row < fireMap.size (); ++row) {
-        for (int col = 0; col < fireMap.at (row).size (); ++col) {
-            std::cout << std::setw(4) << fireMap.at (row).at (col);
+printTimeMap(const TimeMap& timeMap) {
+    for (int row = 0; row < timeMap.size (); ++row) {
+        for (int col = 0; col < timeMap.at (row).size (); ++col) {
+            if (timeMap.at (row).at (col) == IS_A_WALL) {
+                std::cout << std::setw (4) << WALL;
+            }
+            else if (timeMap.at (row).at (col) == BURNING_BEFORE_WE_ARRIVE) {
+                std::cout << std::setw (4) << FIRE;
+            }
+            else if (timeMap.at (row).at (col) == NOT_ON_FIRE_YET || timeMap.at (row).at (col) == NOT_REACHED_YET) {
+                std::cout << std::setw (4) << ROOM;
+            }
+            else {
+                std::cout << std::setw (4) << timeMap.at (row).at (col);
+            }
         }
         std::cout << "\n";
     }
@@ -125,56 +208,27 @@ printFireMap(const FireMap& fireMap) {
 
 void
 solve (const Puzzle& puzzle) {
-    FireMap fireMap = puzzle.generateFireMap ();
-    //printFireMap (fireMap);
+    TimeMap fireMap = puzzle.generateFireMap ();
+    TimeMap fleeMap = puzzle.generateFleeMap (fireMap);
+    //printTimeMap (fireMap);
+    //printTimeMap (fleeMap);
 
-    std::map<State, std::set<Position>> solutions;
-    std::list<std::pair<State, std::set<Position>>> frontier;
-    frontier.push_back ({{puzzle.me, 0}, {}});
-
-    while (!frontier.empty ()) {
-        State current = frontier.front ().first;
-        std::set<Position> previous = frontier.front ().second;
-        frontier.pop_front ();
-        //std::cout << "(" << current.first.first << ", " << current.first.second << "): " << current.second << "\n";
-
-        if (current.first.first == 0 || current.first.first == puzzle.map.size () - 1 || current.first.second == 0 || current.first.second == puzzle.map.at (0).size () - 1) {
-            // We made it out!
-            if (solutions.count (current) == 0 || solutions.at (current).size () > previous.size ()) {
-                solutions[current] = previous;
-            }
-        }
-        else {
-            std::vector<Position> neighbors;
-            if (current.first.first > 0) { neighbors.push_back ({current.first.first - 1, current.first.second}); }
-            if (current.first.first < puzzle.map.size () - 1) { neighbors.push_back ({current.first.first + 1, current.first.second}); }
-            if (current.first.second > 0) { neighbors.push_back ({current.first.first, current.first.second - 1}); }
-            if (current.first.second < puzzle.map.at (0).size () - 1) { neighbors.push_back ({current.first.first, current.first.second + 1}); }
-            // We could move to any adjacent square
-            for (const Position& pos : neighbors) {
-                // ... as long as it isn't a wall
-                if (puzzle.map.at (pos.first).at (pos.second) != WALL) {
-                    // ... and it isn't already on fire
-                    if (fireMap.at (pos.first).at (pos.second) > current.second) {
-                        // ... and (for efficiency) we haven't already been there
-                        if (previous.count (pos) == 0) {
-                            // Then we can try it!
-                            frontier.push_back ({{pos, current.second + 1}, {previous}});
-                            frontier.back ().second.insert (current.first);
-                        }
-                    }
+    // Search for cells on the border that are reachable, choose the first reachable one.
+    int best = INT16_MAX;
+    for (int row = 0; row < puzzle.map.size (); ++row) {
+        for (int col = 0; col < puzzle.map.at (row).size (); ++col) {
+            if (row == 0 || row == puzzle.map.size () - 1 || col == 0 || col == puzzle.map.at (row).size () - 1) {
+                if (fleeMap.at (row).at (col) >= 0) {
+                    best = std::min (best, fleeMap.at (row).at (col));
                 }
             }
         }
     }
-    if (solutions.size () == 0) {
+
+    if (best == INT16_MAX) {
         std::cout << "IMPOSSIBLE\n";
     }
     else {
-        int best = INT16_MAX;
-        for (const std::pair<State, std::set<Position>>& solution : solutions) {
-            if (solution.first.second < best) { best = solution.first.second; }
-        }
         std::cout << best + 1 << "\n";
     }
 }
@@ -188,23 +242,13 @@ main (int argc, char* argv[])
         int w, h;
         std::cin >> w >> h;
         Puzzle puzzle;
-        puzzle.me.first = -1;
-        puzzle.me.second = -1;
         while (h > 0) {
             std::string line;
             std::cin >> line;
-            assert (line.length () == w);
-            for (char c : line) {
-                assert (c == ROOM || c == WALL || c == ME || c == FIRE);
-                if (c == ME) {
-                    puzzle.me.first = puzzle.map.size ();
-                    puzzle.me.second = line.find (ME);
-                }
-            }
             puzzle.map.push_back (std::vector<char> (line.begin (), line.end()));
             --h;
         }
-        puzzle.validate ();
+        //puzzle.validate ();
         solve (puzzle);
         --numTestCases;
     }
