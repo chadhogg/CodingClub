@@ -8,6 +8,15 @@
 ///     instead think of them as lazily deleted.
 ///   - Path compression, where instead of considering walking one meter at a time we only
 ///     ever walk between home, subway stations, and school.
+/// My second approach (solve2) does not get the correct answer either.  Which of my
+///   assumptions could be wrong?
+/// Assumptions:
+///   - There's no reason to ever stop anywhere other than a subway station, home, or school.
+///   - There's no reason to ever walk between two stops on the same subway.
+///   - My implementation of A* is correct.
+///   - A* should make it so that the first time I visit a location is the least-cost way 
+///     to get there.
+///   - Manhattan distance at subway-speed cost is a consistent, admissible heuristic.
 
 #include <iostream>
 #include <vector>
@@ -54,6 +63,7 @@ struct Problem
     Location home;
     Location school;
     std::vector<Subway> subways;
+    std::unordered_set<Location> places;
 };
 
 double
@@ -137,6 +147,39 @@ solve (const Problem& prob)
     return INFINITY;
 }
 
+double
+solve2 (const Problem& prob)
+{
+    std::priority_queue<SearchNode, std::vector<SearchNode>, std::greater<SearchNode>> frontier;
+    frontier.push ({prob.home, 0, subwayTime(prob.home, prob.school)});
+    std::unordered_set<Location> visited;
+    while (!frontier.empty ()) {
+        SearchNode current = frontier.top ();
+        frontier.pop ();
+        //std::cout << "Considering (" << current.loc.first << ", " << current.loc.second << ") at a cost of " << current.f << " and a heuristic value of " << current.g << "\n";
+        visited.insert (current.loc);
+        if (prob.school == current.loc) {
+            return current.f;
+        }
+        for (const Location& place: prob.places) {
+            if (place != current.loc && visited.count (place) == 0) {
+                bool found = false;
+                for (const Subway & sub : prob.subways) {
+                    if (sub.count (place) == 1 && sub.count(current.loc) == 1) {
+                        found = true;
+                        frontier.push ({place, current.f + subwayTime (current.loc, place), subwayTime (place, prob.school)});
+                        break;
+                    }
+                }
+                if (!found) {
+                    frontier.push ({place, current.f + walkTime (current.loc, place), subwayTime(place, prob.school)});
+                }
+            }
+        }
+    }
+    return INFINITY;
+}
+
 Problem
 readInput ()
 {
@@ -154,13 +197,21 @@ readInput ()
         }
         std::cin >> x >> y;
     }
-    return {{homeX, homeY}, {schoolX, schoolY}, subways};
+    std::unordered_set<Location> places;
+    places.insert ({homeX, homeY});
+    places.insert ({schoolX, schoolY});
+    for (const Subway& sub : subways) {
+        for (const Location& loc : sub) {
+            places.insert(loc);
+        }
+    }
+    return {{homeX, homeY}, {schoolX, schoolY}, subways, places};
 }
 
 int main()
 {
     Problem prob = readInput ();
-    double hours = solve(prob);
+    double hours = solve2(prob);
     std::cout << (int)round(hours * MINUTES_PER_HOUR) << "\n";
     return 0;
 }
