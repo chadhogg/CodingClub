@@ -43,8 +43,8 @@ maxTeams (const Preferences& comp, const std::vector<bool>& going, int next)
     static std::map<std::pair<std::vector<bool>, int>, int> cache;
     if (cache.count ({going, next}) > 0) { return cache[{going, next}]; }
 
-    // Base case: if we have considered every competitor, just count how many teams already
-    //   exist.
+    // Base case: not enough unconsidered people to make any more teams, so just count how 
+    //   many teams already exist.
     if (next >= comp.size () - 2) {
         int count = 0;
         for (int i = 0; i < comp.size (); ++i) {
@@ -133,7 +133,7 @@ main ()
     Preferences competitors;
     for (int i = 0; i < n; ++i) {
         std::cin >> a >> b;
-        // Subtracting here because their concept of team numbers is 1-based, not 0-based.
+        // Subtracting here because their concept of competitor numbers is 1-based, not 0-based.
         competitors.emplace_back (a - 1, b - 1);
     }
     std::cout << partitionAndSolve (competitors) << "\n";
