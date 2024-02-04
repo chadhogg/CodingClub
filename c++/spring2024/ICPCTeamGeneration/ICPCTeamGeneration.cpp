@@ -5,15 +5,44 @@
 /// I had originally tried just using maxTeams() with no partitioning, and that was too slow.
 /// I added partitionAndSolve() to the pipeline because it seemed like a good way to take
 ///   advantage of the "if i < j, ai <= aj and bi <= bj" stipulation, but it hasn't helped.
+/// I was originally using a map as my memoization cache, changed to unordered_map at 
+///   suggestion of William Killian.
+/// I was originally using a vector<bool> as my record of why is on a team; changed to 
+///   bit-packed int at suggestion of William Killian.
+
+#define NDEBUG
 
 #include <iostream>
 #include <vector>
 #include <cassert>
-#include <map>
+#include <unordered_map>
 
 using Preference = std::pair<int, int>;
 using Preferences = std::vector<Preference>;
+using Going = uint64_t;
+using State = std::pair<Going, int>;
+using Cache = std::unordered_map<State, int>;
 
+template<>
+struct std::hash<State>
+{
+    std::size_t operator() (const State& state) const
+    {
+        return state.first + state.second;
+    }
+};
+
+inline bool
+isBitOn (const Going& bools, int index)
+{
+    return bools & (1 << index);
+}
+
+inline void
+turnBitOn (Going& bools, int index)
+{
+    bools |= (1 << index);
+}
 
 /// @brief Calculates the maximum number of teams that can be created from a partially-solved problem.
 ///
@@ -31,16 +60,15 @@ using Preferences = std::vector<Preference>;
 ///   team with the next competitor or to make one of the teams that can possibly work with
 ///   them and two lower competitors.  Consider all possibilities and choose the best.
 int
-maxTeams (const Preferences& comp, const std::vector<bool>& going, int next)
+maxTeams (const Preferences& comp, const Going& going, int next, Cache& cache)
 {
     // If this competitor is already on a team, move on to the next one that isn't.
-    while (next < comp.size () - 2 && going[next]) {
+    while (next < comp.size () - 2 && isBitOn (going, next)) {
         ++next;
     }
 
     // Memoization -- might not be enough overlap to make it worthwhile, but it doesn't
     //   seem to hurt.
-    static std::map<std::pair<std::vector<bool>, int>, int> cache;
     if (cache.count ({going, next}) > 0) { return cache[{going, next}]; }
 
     // Base case: not enough unconsidered people to make any more teams, so just count how 
@@ -48,7 +76,7 @@ maxTeams (const Preferences& comp, const std::vector<bool>& going, int next)
     if (next >= comp.size () - 2) {
         int count = 0;
         for (int i = 0; i < comp.size (); ++i) {
-            if (going[i]) { ++count; }
+            if (isBitOn (going, i)) { ++count; }
         }
         assert (count % 3 == 0);
         cache[{going, next}] = count / 3;
@@ -58,27 +86,29 @@ maxTeams (const Preferences& comp, const std::vector<bool>& going, int next)
     //   every team we could make with them and lower-ranked competitors.
     else {
         // Best option that doesn't include this competitor.
-        int max = maxTeams (comp, going, next + 1);
+        int max = maxTeams (comp, going, next + 1, cache);
         assert (!going[next]);
         // Consider each lower competitor who isn't already on a team and is compatible with
         //   the "next" competitor as a second team member.
         for (int second = next + 1; second < comp.size () - 1; ++second) {
-            if (!going[second]
+            if (!isBitOn (going, second)
                 && second >= comp[next].first && second <= comp[next].second
                 && next >= comp[second].first && next <= comp[second].second) {
                 // Consider each lower competitor who isn't already on a team and is compatible
                 //   with both the "next" and "second" team members as a third team member.
                 for (int third = second + 1; third < comp.size (); ++third) {
-                    if (!going[third]
+                    if (!isBitOn (going, third)
                         && third >= comp[next].first && third <= comp[next].second
                         && next >= comp[third].first && next <= comp[third].second
                         && third >= comp[second].first && third <= comp[second].second
                         && second >= comp[third].first && second <= comp[third].second) {
-                        std::vector<bool> used (going);
-                        used[next] = used[second] = used[third] = true;
+                        Going used (going);
+                        turnBitOn (used, next);
+                        turnBitOn (used, second);
+                        turnBitOn (used, third);
                         // See if we can make more total teams using this team than what we
                         //   have tried so far.
-                        max = std::max (max, maxTeams (comp, used, next + 1));
+                        max = std::max (max, maxTeams (comp, used, next + 1, cache));
                     }
                 }
             }
@@ -121,8 +151,9 @@ partitionAndSolve (const Preferences& comp)
         }
     }
     // No partition points were found, so just solve the whole problem.
-    std::vector<bool> going (comp.size (), false);
-    return maxTeams (comp, going, 0);
+    Going going = 0;
+    Cache cache;
+    return maxTeams (comp, going, 0, cache);
 }
 
 int
