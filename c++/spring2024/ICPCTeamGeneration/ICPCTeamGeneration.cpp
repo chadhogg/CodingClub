@@ -7,7 +7,7 @@
 ///   advantage of the "if i < j, ai <= aj and bi <= bj" stipulation, but it hasn't helped.
 /// I was originally using a map as my memoization cache, changed to unordered_map at 
 ///   suggestion of William Killian.
-/// I was originally using a vector<bool> as my record of why is on a team; changed to 
+/// I was originally using a vector<bool> as my record of who is on a team; changed to 
 ///   bit-packed int at suggestion of William Killian.
 
 #define NDEBUG
