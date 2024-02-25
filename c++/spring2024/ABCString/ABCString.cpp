@@ -6,10 +6,10 @@
 //   Use dynamic programming to try every possible assignment of chars to substrings, see if any work,
 //     one character at a time from the beginning of the string.
 //   If we reach a character that cannot be legally added to any substring, we can backtrack.
-//   Once any substring has all three letters, we can empty it out.
+//   Once any substring has all three letters, we can clear it without changing the result.
 //   If we reach the end of the string without backtracking, we have found a partition.
 //   Caching results may be helpful.
-//   If multiple substrings are in the same state, there's no reason to try applying the next char to more than one of them.
+//   There is no meaningful order among the substrings, so we can reduce the combinations to explore.
 
 #include <iostream>
 #include <vector>
@@ -17,12 +17,49 @@
 #include <unordered_map>
 #include <set>
 #include <string>
+#include <map>
+
+struct MyMultiSet
+{
+    std::map<std::set<char>, std::size_t> substrs;
+
+    void
+    removeSet (const std::set<char>& s)
+    {
+        --substrs[s];
+        if (substrs.at (s) == 0) {
+            substrs.erase (s);
+        }
+    }
+
+    void
+    addSet (const std::set<char>& s)
+    {
+        if (substrs.count (s) == 0) {
+            substrs.insert ({s, 0});
+        }
+        ++substrs[s];
+    }
+
+};
+
+std::ostream& operator<< (std::ostream& out, const MyMultiSet& mms)
+{
+    for (const std::pair<std::set<char>, std::size_t>& opt : mms.substrs) {
+        out << "{";
+        for (const char& c : opt.first) {
+            out << c;
+        }
+        out << "}: " << opt.second << " ";
+    }
+    return out;
+}
 
 
 struct Partial
 {
     unsigned int num;
-    std::vector<std::set<char>> substrs;
+    MyMultiSet substrs;
     unsigned int index;
 };
 
@@ -32,12 +69,12 @@ struct std::hash<Partial>
     std::size_t operator() (const Partial& part) const
     {
         std::size_t result = part.index + part.num * 30000;
-        for (unsigned int sub = 0; sub < part.num; ++sub) {
+        for (const std::pair<std::set<char>, std::size_t>& s : part.substrs.substrs) {
             std::size_t x = 0;
-            for (const char& c : part.substrs.at (sub)) {
+            for (const char& c : s.first) {
                 x += c;
             }
-            result += x * (sub + 1);
+            result += x * s.second;
         }
         return result;
     }
@@ -45,43 +82,46 @@ struct std::hash<Partial>
 
 bool operator== (const Partial& a, const Partial& b)
 {
-    return a.num == b.num && a.index == b.index && a.substrs == b.substrs;
-}
-
-bool
-hasAnEarlierDuplicate (const std::vector<std::set<char>>& substrs, int choice)
-{
-    for (unsigned int other = 0; other < choice; ++other) {
-        if (substrs.at (other) == substrs.at (choice)) { return true; }
-    }
-    return false;
+    return a.num == b.num && a.index == b.index && a.substrs.substrs == b.substrs.substrs;
 }
 
 std::unordered_map<Partial, bool> g_cache;
 bool
 canContinue (const std::string& str, const Partial& part)
 {
+    std::cout << "Trying " << part.substrs << " at index " << part.index << "\n";
     if (part.index == str.size ()) { return true; }
     if (g_cache.count (part) != 0) { return g_cache.at (part); }
     bool foundASolution = false;
-    for (unsigned int choice = 0; choice < part.num && !foundASolution; ++choice) {
-        if (part.substrs.at (choice).count (str.at (part.index)) == 0 && !hasAnEarlierDuplicate (part.substrs, choice)) {
-            Partial next({part.num, part.substrs, part.index + 1});
-            next.substrs[choice].insert (str.at (part.index));
-            if (next.substrs[choice].size () == 3) {
-                next.substrs[choice].clear ();
+    for (const std::pair<std::set<char>, std::size_t>& option : part.substrs.substrs) {
+        // This is a type of string that exists in the partial solution that does not have this letter.
+        if (option.first.count (str.at (part.index)) == 0) {
+            Partial next ({part.num, part.substrs, part.index + 1});
+            next.substrs.removeSet (option.first);
+            if (option.first.size () == 2) {
+                next.substrs.addSet ({});
             }
-            foundASolution |= canContinue (str, next);
+            else {
+                std::set<char> s {option.first};
+                s.insert (str.at (part.index));
+                next.substrs.addSet (s);
+            }
+            if (canContinue (str, next)) { return true; }
         }
     }
     g_cache[part] = foundASolution;
+    std::cout << "Rejecting " << part.substrs << " at index " << part.index << "\n";
     return foundASolution;
 }
 
 bool
 canPartition (const std::string& str, unsigned int num)
 {
-    return canContinue (str, {num, {num, std::set<char>()}, 0});
+    Partial part {num, {}, 0};
+    for (unsigned int i = 0; i < num; ++i) {
+        part.substrs.addSet ({});
+    }
+    return canContinue (str, part);
 }
 
 int
