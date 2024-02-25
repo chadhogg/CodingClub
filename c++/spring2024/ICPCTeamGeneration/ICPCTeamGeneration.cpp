@@ -1,14 +1,19 @@
 /// \file ICPCTeamGeneration.cpp
 /// \author Chad Hogg
 /// My solution to https://open.kattis.com/problems/icpcteamgeneration
-/// It is not fast enough for hidden test case #3.
-/// I had originally tried just using maxTeams() with no partitioning, and that was too slow.
-/// I added partitionAndSolve() to the pipeline because it seemed like a good way to take
-///   advantage of the "if i < j, ai <= aj and bi <= bj" stipulation, but it hasn't helped.
-/// I was originally using a map as my memoization cache, changed to unordered_map at 
-///   suggestion of William Killian.
-/// I was originally using a vector<bool> as my record of who is on a team; changed to 
-///   bit-packed int at suggestion of William Killian.
+
+// Most of this code is from an approach that was too slow, described here:
+//   It is not fast enough for hidden test case #3.
+//   I had originally tried just using maxTeams() with no partitioning, and that was too slow.
+//   I added partitionAndSolve() to the pipeline because it seemed like a good way to take
+//     advantage of the "if i < j, ai <= aj and bi <= bj" stipulation, but it hasn't helped.
+//   I was originally using a map as my memoization cache, changed to unordered_map at 
+//     suggestion of William Killian.
+//   I was originally using a vector<bool> as my record of who is on a team; changed to 
+//     bit-packed int at suggestion of William Killian.
+// The final code is just the much simpler greedy algorithm at the bottom.
+//   The insights there came from Marshall Feng.
+// I'm disappointed that the fancy way wasn't fast enough.
 
 #define NDEBUG
 
@@ -16,6 +21,7 @@
 #include <vector>
 #include <cassert>
 #include <unordered_map>
+#include <set>
 
 using Preference = std::pair<int, int>;
 using Preferences = std::vector<Preference>;
@@ -156,6 +162,43 @@ partitionAndSolve (const Preferences& comp)
     return maxTeams (comp, going, 0, cache);
 }
 
+bool
+compatible (const Preferences& comp, int a, int b)
+{
+    return b >= comp.at (a).first && b <= comp.at (a).second && a >= comp.at (b).first && a <= comp.at (b).second;
+}
+
+// Observations:
+//   Suppose that A and B are competitors, with A ranked higher than B.
+//   If A considers B too low-ranked, A also considers everyone below B too low-ranked. (obvious)
+//   If B considers A too high-ranked, B also considers everyone above A too high-ranked. (obvious)
+//   If A considers B too low-ranked, everyone above A also considers B too low-ranked.
+//   If B considers A too high-ranked, everyone below B also considers A too high-ranked.
+// Conclusion:
+//   Just going down the list and matching everyone with the highest pair that can work with them should
+//     be enough.
+int
+greedy (const Preferences& comp)
+{
+    std::set<int> onATeam;
+    for (int a = 0; a < comp.size (); ++a) {
+        if (onATeam.count (a) == 0) {
+            for (int b = a + 1; b < comp.size () && onATeam.count (a) == 0; ++b) {
+                if (onATeam.count (b) == 0 && compatible (comp, a, b)) {
+                    for (int c = b + 1; c < comp.size () && onATeam.count(b) == 0; ++c) {
+                        if (onATeam.count (c) == 0 && compatible (comp, a, c) && compatible (comp, b, c)) {
+                            onATeam.insert (a);
+                            onATeam.insert (b);
+                            onATeam.insert (c);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return onATeam.size () / 3;
+}
+
 int
 main ()
 {
@@ -167,6 +210,7 @@ main ()
         // Subtracting here because their concept of competitor numbers is 1-based, not 0-based.
         competitors.emplace_back (a - 1, b - 1);
     }
-    std::cout << partitionAndSolve (competitors) << "\n";
+    //std::cout << partitionAndSolve (competitors) << "\n";
+    std::cout << greedy (competitors) << "\n";
     return 0;
 }
