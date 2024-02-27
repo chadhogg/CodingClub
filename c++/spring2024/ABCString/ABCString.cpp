@@ -1,6 +1,6 @@
 /// \file ABCString.cpp
 /// \author Chad Hogg
-/// A first attempt at https://open.kattis.com/problems/abcstring, which is too slow (and probably exceeds recursion depth limits).
+/// My solution to https://open.kattis.com/problems/abcstring.
 
 // Strategy:
 //   Use dynamic programming to try every possible assignment of chars to substrings, see if any work,
@@ -10,6 +10,11 @@
 //   If we reach the end of the string without backtracking, we have found a partition.
 //   Caching results may be helpful.
 //   There is no meaningful order among the substrings, so we can reduce the combinations to explore.
+
+// New, much simpler idea:
+//   If at any point the difference between the number of As and Bs is X, we need at least X substrings.
+//   (And similarly for every other pair of letters.)
+//   This idea is courtesy of John Hershey.
 
 #include <iostream>
 #include <vector>
@@ -129,6 +134,7 @@ main ()
 {
     std::string str;
     std::cin >> str;
+    /*
     for (unsigned int k = 1; k < str.size () / 3; ++k) {
         g_cache.clear ();
         if (canPartition (str, k)) {
@@ -136,5 +142,18 @@ main ()
             break;
         }
     }
+     */
+    int as = 0, bs = 0, cs = 0;
+    int maxDiff = 0;
+    for (unsigned int index = 0; index < str.size (); ++index) {
+        if (str.at (index) == 'A') { ++as; }
+        else if (str.at (index) == 'B') { ++bs; }
+        else { ++cs; }
+        maxDiff = std::max (maxDiff, std::abs (as - bs));
+        maxDiff = std::max (maxDiff, std::abs (as - cs));
+        maxDiff = std::max (maxDiff, std::abs (bs - cs));
+    }
+    std::cout << maxDiff << "\n";
+
     return 0;
 }
