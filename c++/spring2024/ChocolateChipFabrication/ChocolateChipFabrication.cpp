@@ -1,7 +1,6 @@
 /// \file ChocolateChipFabrication.cpp
 /// \author Chad Hogg
-/// My attempt at a solution to https://open.kattis.com/problems/chocolatechipfabrication.
-/// This works, but is too slow on big grids.
+/// My solution to https://open.kattis.com/problems/chocolatechipfabrication.
 
 
 #include <iostream>
@@ -48,7 +47,7 @@ containsOnly (const Grid& grid, char c) {
 // It seems like it should be, because chipifying is only blocked by too much, never too little.
 //
 // New idea to speed it up -- for each step backwards, strip the outer border off.
-//   This doesn't affect the answer, but also doesn't speed up enough.
+// In fact, strip off entirely empty rows even if they aren't on the outer border.
 int
 greedyBackwards(const Grid& grid)
 {
@@ -57,26 +56,16 @@ greedyBackwards(const Grid& grid)
     while (!containsOnly (current, EMPTY)) {
         Grid next;
         for (size_t i = 1; i < current.size () - 1; ++i) {
-            next.push_back ({});
+            std::vector<char> row;
+            bool nonEmpty = false;
             for (size_t j = 1; j < current[i].size () - 1; ++j) {
-                if (current[i][j] == PATTERN) {
-                    std::vector<std::pair<int, int>> neighbors;
-                    neighbors.push_back ({i - 1, j});
-                    neighbors.push_back ({i + 1, j});
-                    neighbors.push_back ({i, j - 1});
-                    neighbors.push_back ({i, j + 1});
-                    bool atLeastOneEmpty = false;
-                    for (std::pair<int, int>& n : neighbors) {
-                        if (current[n.first][n.second] == EMPTY) {
-                            atLeastOneEmpty = true;
-                            break;
-                        }
-                    }
-                    if (atLeastOneEmpty) { next[i - 1].push_back (EMPTY); }
-                    else { next[i - 1].push_back (PATTERN); }
+                if (current[i][j] == PATTERN && current[i + 1][j] == PATTERN && current[i - 1][j] == PATTERN && current[i][j - 1] == PATTERN && current[i][j + 1] == PATTERN) {
+                    row.push_back (PATTERN);
+                    nonEmpty = true;
                 }
-                else { next[i - 1].push_back (EMPTY); }
+                else { row.push_back (EMPTY); }
             }
+            if (nonEmpty) { next.push_back (row); }
         }
         current = next;
         ++generations;
