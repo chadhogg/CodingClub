@@ -9,8 +9,6 @@
 #include <cassert>
 
 const char PATTERN = 'X';
-const char DOUGH = 'D';
-const char CHIPS = 'C';
 const char EMPTY = '-';
 
 using Grid = std::vector<std::vector<char>>;
@@ -23,8 +21,6 @@ readInput ()
     std::cin >> n >> m;
     Grid pan;
     pan.reserve (n);
-    //std::cin >> junk;
-    //assert (junk == '\n');
     for (int i = 0; i < n; ++i) {
         std::vector<char> row;
         row.reserve (m);
@@ -34,8 +30,6 @@ readInput ()
             row.push_back (c);
         }
         pan.push_back (row);
-        //std::cin >> junk;
-        //assert (junk == '\n');
     }
     return pan;
 }
@@ -44,7 +38,7 @@ bool
 containsOnly (const Grid& grid, char c) {
     for (const std::vector<char>& row : grid) {
         for (const char& ch : row) {
-            if (ch != c && ch != EMPTY) { return false; }
+            if (ch != c) { return false; }
         }
     }
     return true;
@@ -52,6 +46,9 @@ containsOnly (const Grid& grid, char c) {
 
 // Let's hope that putting down dough as late as possible will always be optimal.
 // It seems like it should be, because chipifying is only blocked by too much, never too little.
+//
+// New idea to speed it up -- for each step backwards, strip the outer border off.
+//   This doesn't affect the answer, but also doesn't speed up enough.
 int
 greedyBackwards(const Grid& grid)
 {
@@ -59,9 +56,9 @@ greedyBackwards(const Grid& grid)
     int generations = 0;
     while (!containsOnly (current, EMPTY)) {
         Grid next;
-        for (size_t i = 0; i < grid.size (); ++i) {
+        for (size_t i = 1; i < current.size () - 1; ++i) {
             next.push_back ({});
-            for (size_t j = 0; j < grid[i].size (); ++j) {
+            for (size_t j = 1; j < current[i].size () - 1; ++j) {
                 if (current[i][j] == PATTERN) {
                     std::vector<std::pair<int, int>> neighbors;
                     neighbors.push_back ({i - 1, j});
@@ -70,14 +67,15 @@ greedyBackwards(const Grid& grid)
                     neighbors.push_back ({i, j + 1});
                     bool atLeastOneEmpty = false;
                     for (std::pair<int, int>& n : neighbors) {
-                        if (n.first < 0 || n.first >= grid.size () || n.second < 0 || n.second >= grid[i].size () || current[n.first][n.second] == EMPTY) {
+                        if (current[n.first][n.second] == EMPTY) {
                             atLeastOneEmpty = true;
+                            break;
                         }
                     }
-                    if (atLeastOneEmpty) { next[i].push_back (EMPTY); }
-                    else { next[i].push_back (PATTERN); }
+                    if (atLeastOneEmpty) { next[i - 1].push_back (EMPTY); }
+                    else { next[i - 1].push_back (PATTERN); }
                 }
-                else { next[i].push_back (EMPTY); }
+                else { next[i - 1].push_back (EMPTY); }
             }
         }
         current = next;
