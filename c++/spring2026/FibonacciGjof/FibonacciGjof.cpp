@@ -4,6 +4,17 @@
 /// NOTE: This only solves the first 87/99 test cases within limits.
 ///   Everything I have tried gets either TLE or MLE on test 88.
 
+
+// NOTES ABOUT PISANO PERIODS
+// MOD is prime.
+// According to Wikipedia, the Fibonacci sequences mod any number is periodic.
+// pi(p) represents the length of the period for p
+// Either pi(p) is a divisor of (p-1) or it is a divisor of 2(p+1).
+// (p-1) is divisible by 2 and 500,000,003 and nothing else.
+// 2(p+1) is divisible by 16 and 9 and 7 and 167 and 11881, and ways of combining them.
+// Gemini claims that the period is 2,000,000,016: exactly 2(p+1).
+// Even if there is a shorter period, that will work.
+
 #include <cstddef>
 #include <iostream>
 #include <cassert>
@@ -14,6 +25,7 @@
 using NUMBER = unsigned long;
 
 const NUMBER MOD = 1'000'000'007;
+const NUMBER PERIOD_LENGTH = 2'000'000'016;
 
 // This works, but runs out of memory.
 NUMBER
@@ -58,6 +70,8 @@ fastDoublingFibCompute (NUMBER index, std::unordered_map<NUMBER, NUMBER>& cache)
 {
     //static std::unordered_map<NUMBER, NUMBER> cache;
     assert (index > 0);
+    // If my understanding of Pisano periods is correct, this won't change the answer.
+    index %= PERIOD_LENGTH;
     if (cache.count (index) == 0) {
         if (index <= 2) {
             cache[index] = 1;
